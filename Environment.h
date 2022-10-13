@@ -88,13 +88,22 @@ public:
 	   return mEntry;
    }
 
+   // Get a value
+   int getExprValue(Expr *expr){
+		if(IntegerLiteral *literal = dyn_cast<IntegerLiteral>(expr))
+			return literal->getValue().getSExtValue();
+		else
+			return mStack.back().getStmtVal(expr);
+   }
+
    /// !TODO Support comparison operation
    void binop(BinaryOperator *bop) {
 	   Expr * left = bop->getLHS();
 	   Expr * right = bop->getRHS();
 
 	   if (bop->isAssignmentOp()) {
-		   int val = mStack.back().getStmtVal(right);
+		   //int val = mStack.back().getStmtVal(right);
+		   int val = getExprValue(right);
 		   mStack.back().bindStmt(left, val);
 		   if (DeclRefExpr * declexpr = dyn_cast<DeclRefExpr>(left)) {
 			   Decl * decl = declexpr->getFoundDecl();
