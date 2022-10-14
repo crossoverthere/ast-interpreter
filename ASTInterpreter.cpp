@@ -63,17 +63,31 @@ public:
    virtual void VisitIfStmt(IfStmt *ifstmt)
    {
       // 不可直接取出ifstmt所有子结点
-      // 先取出判断节点
+      // 先取出判断运算节点
       Expr *cond = ifstmt->getCond();
       Visit(cond);
       // 创建一个函数取出栈帧内保存的二元操作结果
       if(mEnv->getValue(cond))
       {
-         VisitStmt(ifstmt->getThen());
+         // 此处不可用VisitStmt()，因为存在函数体缺少CompoundStmt节点的情况(没有使用{})
+         Visit(ifstmt->getThen());
       }
       else
       {
-         VisitStmt(ifstmt->getElse());
+         Visit(ifstmt->getElse());
+      }
+   }
+   // WhileStmt节点
+   virtual void VisitWhileStmt(WhileStmt *wiltmt)
+   {
+      // 先取出判断运算节点
+      Expr *cond = wiltmt->getCond();
+      Visit(cond);
+      // 直到判断运算返回假，结束循环
+      while(mEnv->getValue(cond))
+      {
+         Visit(wiltmt->getBody());
+         Visit(cond);
       }
    }
    /**/

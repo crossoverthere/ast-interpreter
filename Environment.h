@@ -180,11 +180,26 @@ public:
 			int result;
 
 			switch (op) {
-				case BO_EQ: 
-					result = left_value == right_value;
+				case BO_Add:
+					result = left_value + right_value;
 					break;
 				case BO_GT:
 					result = left_value > right_value;
+					break;
+				case BO_LT:
+					result = left_value < right_value;
+					break;
+				case BO_EQ: 
+					result = left_value == right_value;
+					break;
+				case BO_NE:
+					result = left_value != right_value;
+					break;
+				case BO_GE:
+					result = left_value >= right_value;
+					break;
+				case BO_LE:
+					result = left_value <= right_value;
 					break;
 				
 				default:
