@@ -53,6 +53,12 @@ public:
       VisitStmt(literal);
       mEnv->literal(literal);
    }
+   // UnaryOperator节点
+   virtual void VisitUnaryOperator(UnaryOperator *uop)
+   {
+      VisitStmt(uop);
+      mEnv->unaop(uop);
+   }
    // IfStmt节点
    virtual void VisitIfStmt(IfStmt *ifstmt)
    {

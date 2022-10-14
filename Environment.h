@@ -15,6 +15,8 @@ class StackFrame
 {
 	/// StackFrame maps Variable Declaration to Value 将变量声明映射为数值
 	/// Which are either integer or addresses (also represented using an Integer value) 变量或者地址(也可能常量)
+	// mVars用于映射变量到数值
+	// mExprs用于映射操作(stmt节点)到数值
 	std::map<Decl *, int> mVars;
 	std::map<Stmt *, int> mExprs;
 	/// The current stmt 当前stmt
@@ -123,6 +125,32 @@ public:
 		int val = literal->getValue().getSExtValue();
 		mStack.back().bindStmt(literal, val);
 	}
+	void unaop(UnaryOperator *uop)
+	{
+		// 实现一元操作
+		Expr *expr = uop->getSubExpr();
+
+		if(uop->isArithmeticOp()){
+			// 算术运算
+			clang::UnaryOperator::Opcode op = uop->getOpcode();
+			int val = mStack.back().getStmtVal(expr);
+			int result;
+
+			switch (op)
+			{
+			case UO_Plus:
+				result = +val;
+				break;
+			case UO_Minus:
+				result = -val;
+			
+			default:
+				break;
+			}
+			// 运算结果存入栈帧
+			mStack.back().bindStmt(uop, result);
+		}
+	}
 	/**/
 
 	/// !TODO Support comparison operation
@@ -134,6 +162,7 @@ public:
 		if (bop->isAssignmentOp())
 		{
 			int val = mStack.back().getStmtVal(right);
+
 			mStack.back().bindStmt(left, val);
 			if (DeclRefExpr *declexpr = dyn_cast<DeclRefExpr>(left))
 			{
@@ -149,11 +178,16 @@ public:
 			int left_value = mStack.back().getStmtVal(left);
 			int right_value = mStack.back().getStmtVal(right);
 			int result;
-			switch (op) {
-				default:
 
+			switch (op) {
 				case BO_EQ: 
 					result = left_value == right_value;
+					break;
+				case BO_GT:
+					result = left_value > right_value;
+					break;
+				
+				default:
 					break;
 			}
 			// 将二元操作结果存入栈帧
