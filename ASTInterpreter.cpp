@@ -81,7 +81,10 @@ public:
       }
       else
       {
-         Visit(ifstmt->getElse());
+         if(ifstmt->getElse())
+         {
+            Visit(ifstmt->getElse());
+         }
       }
    }
    // WhileStmt节点
