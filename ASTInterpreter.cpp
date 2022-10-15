@@ -14,6 +14,7 @@ using namespace clang;
 // 提取AST节点信息
 // 需要编写这一部分实现RecursiveASTVisitor
 // 仅遍历stmt节点，无Decl节点
+// VisitStmt访问所有子结点，Visit访问当前节点
 class InterpreterVisitor : public EvaluatedExprVisitor<InterpreterVisitor>
 {
 public:
@@ -59,6 +60,12 @@ public:
       VisitStmt(uop);
       mEnv->unaop(uop);
    }
+   // CompoundStmt节点
+   virtual void VisitCompoundStmt(CompoundStmt *copstmt)
+   {
+      // 函数体节点，无需操作
+      VisitStmt(copstmt);
+   }
    // IfStmt节点
    virtual void VisitIfStmt(IfStmt *ifstmt)
    {
@@ -78,15 +85,30 @@ public:
       }
    }
    // WhileStmt节点
-   virtual void VisitWhileStmt(WhileStmt *wiltmt)
+   virtual void VisitWhileStmt(WhileStmt *wilstmt)
    {
       // 先取出判断运算节点
-      Expr *cond = wiltmt->getCond();
+      Expr *cond = wilstmt->getCond();
       Visit(cond);
       // 直到判断运算返回假，结束循环
       while(mEnv->getValue(cond))
       {
-         Visit(wiltmt->getBody());
+         Visit(wilstmt->getBody());
+         Visit(cond);
+      }
+   }
+   // ForStmt节点
+   virtual void VisitForStmt(ForStmt *forstmt)
+   {
+      // 同while，当判断运算返回假时，结束循环
+      Expr *cond = forstmt->getCond();
+
+      Visit(forstmt->getInit());
+      Visit(cond);
+      while(mEnv->getValue(cond))
+      {
+         Visit(forstmt->getBody());
+         Visit(forstmt->getInc());
          Visit(cond);
       }
    }

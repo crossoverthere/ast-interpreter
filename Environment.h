@@ -143,7 +143,8 @@ public:
 				break;
 			case UO_Minus:
 				result = -val;
-			
+				break;
+
 			default:
 				break;
 			}
@@ -182,6 +183,9 @@ public:
 			switch (op) {
 				case BO_Add:
 					result = left_value + right_value;
+					break;
+				case BO_Sub:
+					result = left_value - right_value;
 					break;
 				case BO_GT:
 					result = left_value > right_value;
