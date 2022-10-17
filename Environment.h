@@ -21,6 +21,8 @@ class StackFrame
 	std::map<Stmt *, int> mExprs;
 	/// The current stmt 当前stmt
 	Stmt *mPC;
+	// 定义一个栈，用于保存函数返回值
+	std::stack<int> mResult;
 
 public:
 	StackFrame() : mVars(), mExprs(), mPC()
@@ -245,6 +247,7 @@ public:
 		{
 			Decl *decl = declref->getFoundDecl();
 
+			// 从变量map中取出变量数值
 			int val = mStack.back().getDeclVal(decl);
 			// 将变量数值存入栈帧
 			mStack.back().bindStmt(declref, val);
@@ -256,6 +259,9 @@ public:
 		mStack.back().setPC(castexpr);
 		if (castexpr->getType()->isIntegerType())
 		{
+			// ImplicitCastExpr类型为整形
+			// 从栈帧中读出子结点映射值，绑定该节点
+			// 是因为父节点获取变量值时，只能从子结点的栈帧获得
 			Expr *expr = castexpr->getSubExpr();
 			int val = mStack.back().getStmtVal(expr);
 			mStack.back().bindStmt(castexpr, val);
@@ -263,7 +269,8 @@ public:
 	}
 
 	/// !TODO Support Function Call
-	void call(CallExpr *callexpr)
+	// 利用返回值判定所调用函数的类型
+	int call(CallExpr *callexpr)
 	{
 		mStack.back().setPC(callexpr);
 		int val = 0;
@@ -274,16 +281,22 @@ public:
 			scanf("%d", &val);
 
 			mStack.back().bindStmt(callexpr, val);
+			return 0;
 		}
 		else if (callee == mOutput)
 		{
+			// 获取函数传递参数
 			Expr *decl = callexpr->getArg(0);
 			val = mStack.back().getStmtVal(decl);
 			llvm::errs() << val;
+			return 0;
 		}
 		else
 		{
 			/// You could add your code here for Function call Return
+			// 传递函数参数
+			// 调用子函数，返回1
+			return 1;
 		}
 	}
 };

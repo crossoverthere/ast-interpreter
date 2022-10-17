@@ -34,13 +34,20 @@ public:
    }
    virtual void VisitCastExpr(CastExpr *expr)
    {
+      // 处理ImplicitCastExpr节点
+      // 有函数声明与整形变量两种类型
       VisitStmt(expr);
       mEnv->cast(expr);
    }
    virtual void VisitCallExpr(CallExpr *call)
    {
+      // 函数调用
       VisitStmt(call);
-      mEnv->call(call);
+      if(mEnv->call(call))
+      {
+         // 转入子函数函数体节点
+         Visit(call->getDirectCallee()->getBody());
+      }
    }
    virtual void VisitDeclStmt(DeclStmt *declstmt)
    {
@@ -114,6 +121,11 @@ public:
          Visit(forstmt->getInc());
          Visit(cond);
       }
+   }
+   // ReturnStmt节点
+   virtual void VisitReturnStmt(ReturnStmt *retstmt)
+   {
+      
    }
    /**/
 
