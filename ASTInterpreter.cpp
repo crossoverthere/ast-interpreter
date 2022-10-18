@@ -47,6 +47,7 @@ public:
       {
          // 转入子函数函数体节点
          Visit(call->getDirectCallee()->getBody());
+         mEnv->getRetValue(call);
       }
    }
    virtual void VisitDeclStmt(DeclStmt *declstmt)
@@ -83,7 +84,7 @@ public:
       // 创建一个函数取出栈帧内保存的二元操作结果
       if(mEnv->getValue(cond))
       {
-         // 此处不可用VisitStmt()，因为存在函数体缺少CompoundStmt节点的情况(没有使用{})
+         // 此处不可用VisitStmt()，因为存在函数体缺少CompoundStmt节点的情况
          Visit(ifstmt->getThen());
       }
       else
@@ -125,7 +126,10 @@ public:
    // ReturnStmt节点
    virtual void VisitReturnStmt(ReturnStmt *retstmt)
    {
-      
+      VisitStmt(retstmt);
+
+      // 传递返回值
+      mEnv->setRetValue(retstmt);
    }
    /**/
 
