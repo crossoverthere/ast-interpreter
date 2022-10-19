@@ -16,15 +16,13 @@ class StackFrame
 	/// StackFrame maps Variable Declaration to Value 将变量声明映射为数值
 	/// Which are either integer or addresses (also represented using an Integer value) 变量或者地址(也可能常量)
 	// mVars用于映射变量到数值
-	// mExprs用于映射操作(stmt节点)到数值
+	// mExprs用于映射操作(节点)到数值
 	std::map<Decl *, int> mVars;
 	std::map<Stmt *, int> mExprs;
 	/// The current stmt 当前stmt
 	Stmt *mPC;
 	// 定义一个栈，用于保存函数返回值
 	std::stack<int> mResult;
-	// 定义一个映射，用于保存全局变量
-	std::map<Decl *, int> gVars;
 
 public:
 	StackFrame() : mVars(), mExprs(), mPC()
@@ -52,28 +50,9 @@ public:
 	}
 	int getStmtVal(Stmt *stmt)
 	{
-		// 获取栈帧中操作数
+		// 获取栈帧中节点值
 		assert(mExprs.find(stmt) != mExprs.end());
 		return mExprs[stmt];
-	}
-	void bindGDecl(Decl *decl, int val)
-	{
-		// 保存全局变量
-		gVars[decl] = val;
-	}
-	int getGDeclVal(Decl *decl)
-	{
-		return gVars.find(decl)->second;
-	}
-	void setGDecl(std::map<Decl *, int> *maps)
-	{
-		// 用于复制全局变量映射
-		gVars = *maps;
-	}
-	std::map<Decl *, int> *getGDecl()
-	{
-		// 用于复制全局变量映射
-		return &gVars;
 	}
 	void pushResult(int retVal)
 	{
@@ -111,6 +90,7 @@ public:
 class Environment
 {
 	std::vector<StackFrame> mStack; // 用于保存不同函数的栈帧，mStack.back()指向当前函数栈帧
+	std::map<Decl *, int> gVars;  	// 用于保存全局变量
 
 	FunctionDecl *mFree; /// Declartions to the built-in functions
 	FunctionDecl *mMalloc;
@@ -128,7 +108,6 @@ public:
 	/// Initialize the Environment
 	void init(TranslationUnitDecl *unit)
 	{
-		mStack.push_back(StackFrame());
 		for (TranslationUnitDecl::decl_iterator i = unit->decls_begin(), e = unit->decls_end(); i != e; ++i)
 		{
 			if (FunctionDecl *fdecl = dyn_cast<FunctionDecl>(*i))
@@ -154,15 +133,15 @@ public:
 					IntegerLiteral *literal = dyn_cast<IntegerLiteral>(expr);
 					int var = literal->getValue().getSExtValue();
 
-					mStack.back().bindGDecl(vardecl, var);
+					gVars[vardecl] = var;
 				}
 				else
 				{	
-					mStack.back().bindGDecl(vardecl, 0);
+					gVars[vardecl] = 0;
 				}
 			}
 		}
-//		mStack.push_back(StackFrame());
+		mStack.push_back(StackFrame());
 	}
 
 	FunctionDecl *getEntry()
@@ -217,7 +196,11 @@ public:
 		int val = mStack.back().getStmtVal(retVal);
 
 		mStack.pop_back();
-		mStack.back().pushResult(val);
+		// 判断是否为main函数返回节点
+		if(!mStack.empty())
+		{
+			mStack.back().pushResult(val);
+		}
 	}
 	void getRetValue(CallExpr *call)
 	{
@@ -244,7 +227,17 @@ public:
 			{
 				// 为变量赋予新值
 				Decl *decl = declexpr->getFoundDecl();
-				mStack.back().bindDecl(decl, val);
+				if(mStack.back().hasDeclVal(decl))
+				{
+					// 判断变量是否为局部变量
+					mStack.back().bindDecl(decl, val);
+				}
+				else
+				{
+					// 检查是否为全局变量
+					assert(gVars.find(decl) != gVars.end());
+					gVars[decl] = val;
+				}
 			}
 		}
 		else
@@ -329,7 +322,8 @@ public:
 			else
 			{
 				// 不在则查找全局变量
-				val = mStack.back().getGDeclVal(decl);
+				assert(gVars.find(decl) != gVars.end());
+				val = gVars[decl];
 			}
 			// 将变量数值存入栈帧
 			mStack.back().bindStmt(declref, val);
@@ -392,8 +386,6 @@ public:
 
 				funFrame.bindDecl(parm, val);
 			}
-			// 复制全局变量到新的栈帧
-			funFrame.setGDecl(mStack.back().getGDecl());
 			// 将函数栈帧压入
 			mStack.push_back(funFrame);
 			// 调用子函数，返回1
