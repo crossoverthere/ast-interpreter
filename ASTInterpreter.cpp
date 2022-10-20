@@ -11,6 +11,8 @@ using namespace clang;
 
 #include "Environment.h"
 
+class ReturnException : public std::exception {};
+
 // 提取AST节点信息
 // 需要编写这一部分实现RecursiveASTVisitor
 // 仅遍历stmt节点，无Decl节点
@@ -35,7 +37,7 @@ public:
    virtual void VisitCastExpr(CastExpr *expr)
    {
       // 处理ImplicitCastExpr节点
-      // 有函数声明与整形变量两种类型
+      // 有函数声明，整形变量，指针三种
       VisitStmt(expr);
       mEnv->cast(expr);
    }
@@ -46,7 +48,11 @@ public:
       if(mEnv->call(call))
       {
          // 转入子函数函数体节点
-         Visit(call->getDirectCallee()->getBody());
+         try
+         {
+            Visit(call->getDirectCallee()->getBody());
+         }
+         catch(ReturnException e){}
          mEnv->getRetValue(call);
       }
    }
@@ -113,8 +119,12 @@ public:
    {
       // 同while，当判断运算返回假时，结束循环
       Expr *cond = forstmt->getCond();
+      
 
-      Visit(forstmt->getInit());
+      if(forstmt->getInit())
+      {
+         Visit(forstmt->getInit());
+      }
       Visit(cond);
       while(mEnv->getValue(cond))
       {
@@ -123,6 +133,12 @@ public:
          Visit(cond);
       }
    }
+   // ArraySubscriptExpr节点
+   virtual void VisitArraySubscriptExpr(ArraySubscriptExpr *array)
+   {
+      VisitStmt(array);
+      mEnv->arrayexpr(array);
+   }
    // ReturnStmt节点
    virtual void VisitReturnStmt(ReturnStmt *retstmt)
    {
@@ -130,6 +146,7 @@ public:
 
       // 传递返回值
       mEnv->setRetValue(retstmt);
+      throw ReturnException();
    }
    /**/
 
@@ -153,7 +170,11 @@ public:
       mEnv.init(decl);
 
       FunctionDecl *entry = mEnv.getEntry();
-      mVisitor.VisitStmt(entry->getBody());
+
+      try{
+         mVisitor.VisitStmt(entry->getBody());
+      }
+      catch(ReturnException e){}
    }
 
 private:
