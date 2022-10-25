@@ -48,8 +48,7 @@ public:
       if(mEnv->call(call))
       {
          // 转入子函数函数体节点
-         try
-         {
+         try{
             Visit(call->getDirectCallee()->getBody());
          }
          catch(ReturnException e){}
@@ -139,13 +138,35 @@ public:
       VisitStmt(array);
       mEnv->arrayexpr(array);
    }
+   // CStyleCastExpr节点
+   virtual void VisitCStyleCastExpr(CStyleCastExpr *cscast)
+   {
+      // 用于转换类型
+      // 此处不做处理，仅传递数据
+      VisitStmt(cscast);
+      mEnv->cast(cscast);
+   }
+   // UnaryExprOrTypeTraitExpr节点
+   virtual void VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *typetrait)
+   {
+      VisitStmt(typetrait);
+      mEnv->uett(typetrait);
+   }
+   // ParenExpr节点
+   virtual void VisitParenExpr(ParenExpr *parenexpr)
+   {
+      VisitStmt(parenexpr);
+      mEnv->paren(parenexpr);
+   }
    // ReturnStmt节点
    virtual void VisitReturnStmt(ReturnStmt *retstmt)
    {
       VisitStmt(retstmt);
 
-      // 传递返回值
+      // 保存返回值
       mEnv->setRetValue(retstmt);
+      // 函数返回后，程序会继续执行子函数后续节点
+      // 这里利用抛出异常，终止代码块的执行
       throw ReturnException();
    }
    /**/
