@@ -15,7 +15,6 @@ class ReturnException : public std::exception {};
 
 // 提取AST节点信息
 // 需要编写这一部分实现RecursiveASTVisitor
-// 仅遍历stmt节点，无Decl节点
 // VisitStmt访问所有子结点，Visit访问当前节点
 class InterpreterVisitor : public EvaluatedExprVisitor<InterpreterVisitor>
 {
@@ -37,7 +36,6 @@ public:
    virtual void VisitCastExpr(CastExpr *expr)
    {
       // 处理ImplicitCastExpr节点
-      // 有函数声明，整形变量，指针三种
       VisitStmt(expr);
       mEnv->cast(expr);
    }

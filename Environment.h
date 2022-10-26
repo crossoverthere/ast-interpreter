@@ -15,18 +15,12 @@ using namespace clang;
 
 class StackFrame
 {
-	/// StackFrame maps Variable Declaration to Value 将变量声明映射为数值
-	/// Which are either integer or addresses (also represented using an Integer value) 变量或者地址(也可能常量)
-	// mVars用于映射变量到数值
-	// mExprs用于映射操作(节点)到数值
-	// mPtrs用于映射指针到地址
-	// mExprs_P用于映射节点到地址
-	// 数据类型改为int64_t，便于将地址以数据形式保存
+	// mVars为声明的变量保存数值，为指针保存地址
+	// mExprs为每个操作(节点)保存一个数值、地址
+	// 数据类型改为int64_t，地址以整形形式保存
 	std::map<Decl *, int64_t> mVars;
 	std::map<Stmt *, int64_t> mExprs;
-//	std::map<Decl *, int64_t *> mPtrs;
-//	std::map<Stmt *, int *> mExprs_P;
-	/// The current stmt 当前stmt
+	/// 当前stmt(无作用)
 	Stmt *mPC;
 	// 用于保存函数返回值
 	int64_t mResult;
@@ -43,6 +37,7 @@ public:
 	}
 	int64_t getDeclVal(Decl *decl)
 	{
+		// 获得变量
 		assert(mVars.find(decl) != mVars.end());
 		return mVars[decl];
 	}
@@ -50,36 +45,17 @@ public:
 	{
 		return mVars.find(decl) != mVars.end();
 	}
-	// void bindPtr(Decl *decl, int64_t *ptr)
-	// {
-	// 	// 保存指针
-	// 	mPtrs[decl] = ptr;
-	// }
-	// int64_t *getPtr(Decl *decl)
-	// {
-	// 	assert(mPtrs.find(decl) != mPtrs.end());
-	// 	return mPtrs[decl];
-	// }
 	void bindStmt(Stmt *stmt, int64_t val)
 	{
-		// 保存节点值
+		// 保存节点对应值
 		mExprs[stmt] = val;
 	}
 	int64_t getStmtVal(Stmt *stmt)
 	{
-		// 获取节点值
+		// 获取节点对应值
 		assert(mExprs.find(stmt) != mExprs.end());
 		return mExprs[stmt];
 	}
-	// void bindStmtPtr(Stmt *stmt, int *ptr)
-	// {
-	// 	mExprs_P[stmt] = ptr;
-	// }
-	// int *getStmtPtr(Stmt *stmt)
-	// {
-	// 	assert(mExprs_P.find(stmt) != mExprs_P.end());
-	// 	return mExprs_P[stmt];
-	// }
 	void setResult(int64_t retVal)
 	{
 		// 保存函数返回值
@@ -101,20 +77,10 @@ public:
 	}
 };
 
-/// Heap maps address to a value
-/*
-class Heap {
-public:
-   int Malloc(int size) ;
-   void Free (int addr) ;
-   void Update(int addr, int val) ;
-   int get(int addr);
-};
-*/
 
 class Environment
 {
-	std::vector<StackFrame> mStack; // 用于保存不同函数的栈帧，mStack.back()指向当前函数栈帧
+	std::vector<StackFrame> mStack; 	// 用于保存不同函数的栈帧，mStack.back()指向当前函数栈帧
 	std::map<Decl *, int64_t> gVars;  	// 用于保存全局变量
 
 	FunctionDecl *mFree; /// Declartions to the built-in functions
@@ -214,7 +180,6 @@ public:
 		else
 		{
 			// 非算术运算，目前仅考虑操作符*
-			// 记录地址处保存的数值
 			int64_t *ptr = (int64_t *)mStack.back().getStmtVal(expr);
 			result = *ptr;
 		}
@@ -231,7 +196,7 @@ public:
 		int64_t *ptr = (int64_t *)mStack.back().getStmtVal(base);
 		int64_t index = mStack.back().getStmtVal(idx);
 		int64_t val = ptr[index];
-		
+
 		mStack.back().bindStmt(array, val);
 	}
 	void uett(UnaryExprOrTypeTraitExpr *typetrait)
@@ -252,8 +217,8 @@ public:
 	void setRetValue(ReturnStmt *retstmt)
 	{
 		// 保存函数返回值
-		Expr *retVal = retstmt->getRetValue();
-		int64_t val = mStack.back().getStmtVal(retVal);
+		Expr *retval = retstmt->getRetValue();
+		int64_t val = mStack.back().getStmtVal(retval);
 
 		mStack.back().setResult(val);
 		mStack.back().bindStmt(retstmt, val);
@@ -280,18 +245,18 @@ public:
 		{
 			// 赋值操作			
 			// 左侧可能为DeclRefExpr，ArraySubscriptExpr，UnaryOperator
-			// 右侧可能为ImplicitCastExpr，CStyleCastExpr，IntegerLiteral
+			// 右侧不管什么类型，只需要取出最上层节点对应的数值
 			int64_t val = mStack.back().getStmtVal(right);
 
 			if (isa<DeclRefExpr>(left))
 			{
-				DeclRefExpr *declexpr = dyn_cast<DeclRefExpr>(left);
-				Decl *vardecl = declexpr->getFoundDecl();
+				DeclRefExpr *declref = dyn_cast<DeclRefExpr>(left);
+				Decl *vardecl = declref->getFoundDecl();
 
-				QualType declType = declexpr->getType();
-				if(declType->isIntegerType())
+				QualType declType = declref->getType();
+				if(declType->isIntegerType() || declType->isPointerType())
 				{
-					// 左侧为整形变量
+					// 左侧为整形变量或指针型变量
 					if(mStack.back().hasDeclVal(vardecl))
 					{
 						// 判断变量是否为局部变量
@@ -304,19 +269,14 @@ public:
 						gVars[vardecl] = val;
 					}
 				}
-				else if(declType->isPointerType())
-				{	
-					// 左侧为指针类型变量
-					mStack.back().bindDecl(vardecl, val);
-				}
 			}
 			else if(isa<ArraySubscriptExpr>(left))
 			{
 				// 左侧为数组类型
 				// 获取数组信息
-				ArraySubscriptExpr *arrayexpr = dyn_cast<ArraySubscriptExpr>(left);
-				Expr *base = arrayexpr->getBase();
-				Expr *idx = arrayexpr->getIdx();
+				ArraySubscriptExpr *array = dyn_cast<ArraySubscriptExpr>(left);
+				Expr *base = array->getBase();
+				Expr *idx = array->getIdx();
 				// 为数组对应位置赋值
 				int64_t *ptr = (int64_t *)mStack.back().getStmtVal(base);
 				int64_t index = mStack.back().getStmtVal(idx);
@@ -339,13 +299,13 @@ public:
 			clang::BinaryOperator::Opcode op = bop->getOpcode();
 			int64_t left_value = mStack.back().getStmtVal(left);
 			int64_t right_value = mStack.back().getStmtVal(right);
+			int64_t result;
 
 			if (left->getType()->isPointerType())
 			{
-				// 考虑左侧为地址
+				// 考虑到左操作数是地址，右操作数是常数相加
 				right_value = right_value * sizeof(int64_t);
 			}
-			int64_t result;
 
 			switch (op) {
 				case BO_Add:
@@ -390,15 +350,16 @@ public:
 	void decl(DeclStmt *declstmt)
 	{
 		// 声明操作
-		for (DeclStmt::decl_iterator it = declstmt->decl_begin(), ie = declstmt->decl_end();
+		for(DeclStmt::decl_iterator it = declstmt->decl_begin(), ie = declstmt->decl_end();
 			 it != ie; ++it)
 		{
 			Decl *decl = *it;
-			if (VarDecl *vardecl = dyn_cast<VarDecl>(decl))
+			if(VarDecl *vardecl = dyn_cast<VarDecl>(decl))
 			{
 				QualType declType = vardecl->getType();
-				if(declType->isIntegerType())
+				if(declType->isIntegerType() || declType->isPointerType())
 				{
+					// 声明整形或指针类型变量
 					if(vardecl->hasInit())
 					{
 						// 有初始化
@@ -413,23 +374,12 @@ public:
 				}
 				else if(declType->isArrayType())
 				{
+					// 声明数组，仅考虑无初始化
 					const ConstantArrayType *arrayDecl = dyn_cast<ConstantArrayType>(declType.getTypePtr());
-					int64_t arraySize = arrayDecl->getSize().getSExtValue();
-					int64_t *ptr = new int64_t[arraySize];
+					int64_t size = arrayDecl->getSize().getSExtValue();
+					int64_t *ptr = new int64_t[size];
 					// 将数组地址存入mPtrs
 					mStack.back().bindDecl(vardecl, (int64_t)ptr);
-				}
-				else if(declType->isPointerType())
-				{
-					if(vardecl->hasInit())
-					{
-						int64_t ptr = (int64_t)mStack.back().getStmtVal(vardecl->getInit());
-						mStack.back().bindDecl(vardecl, ptr);
-					}
-					else
-					{
-						mStack.back().bindDecl(vardecl, 0);
-					}
 				}
 			}
 		}
@@ -438,13 +388,13 @@ public:
 	void declref(DeclRefExpr *declref)
 	{
 		mStack.back().setPC(declref);
-
 		// getFoundDecl()可以获得声明
-		QualType declType = declref->getType();
 		Decl *vardecl = declref->getFoundDecl();
-		if (declType->isIntegerType())
+
+		QualType declType = declref->getType();
+		if(declType->isIntegerType() || declType->isPointerType() || declType->isArrayType())
 		{
-			// DeclRefExpr类型为整形
+			// 类型为整形、指针、数组
 			int64_t val;
 
 			if(mStack.back().hasDeclVal(vardecl))
@@ -455,39 +405,33 @@ public:
 			else
 			{
 				// 不在则查找全局变量
-				//assert(gVars.find(vardecl) != gVars.end());
-				//val = gVars[vardecl];
-				val = 0;
-				std::cout<<vardecl<<std::endl;
+				assert(gVars.find(vardecl) != gVars.end());
+				val = gVars[vardecl];
 			}
 			// 将变量数值存入栈帧
 			mStack.back().bindStmt(declref, val);
-		}
-		else if(declType->isArrayType() || declType->isPointerType())
-		{
-			int64_t ptr = mStack.back().getDeclVal(vardecl);
-			mStack.back().bindStmt(declref, ptr);
 		}
 	}
 
 	void cast(CastExpr *castexpr)
 	{
+		// 仅作传递数值作用
 		mStack.back().setPC(castexpr);
-		QualType castType = castexpr->getType();
 		Expr *expr = castexpr->getSubExpr();
+
+		QualType castType = castexpr->getType();
 		if (castType->isIntegerType())
 		{
 			// ImplicitCastExpr类型为整形
 			// 从栈帧中读出子结点映射值，绑定该节点
-			// 是因为父节点获取变量值时，只能从子结点的栈帧获得
 			int64_t val = mStack.back().getStmtVal(expr);
 			mStack.back().bindStmt(castexpr, val);
 		}
 		else if(castType->isPointerType() && !castType->isFunctionPointerType())
 		{
-			// ImplicitCastExpr类型为指针
-			int64_t ptr = mStack.back().getStmtVal(expr);
-			mStack.back().bindStmt(castexpr, ptr);
+			// ImplicitCastExpr类型为指针，非函数
+			int64_t val = mStack.back().getStmtVal(expr);
+			mStack.back().bindStmt(castexpr, val);
 		}
 	}
 
@@ -497,6 +441,7 @@ public:
 	{
 		mStack.back().setPC(callexpr);
 		int64_t val = 0;
+		// getDirectCallee()返回一个函数声明
 		FunctionDecl *callee = callexpr->getDirectCallee();
 		if (callee == mInput)
 		{
@@ -508,7 +453,6 @@ public:
 		}
 		else if (callee == mOutput)
 		{
-			// 获取函数传递参数
 			Expr *decl = callexpr->getArg(0);
 			val = mStack.back().getStmtVal(decl);
 			llvm::errs() << val;
@@ -516,12 +460,11 @@ public:
 		}
 		else if(callee == mMalloc)
 		{
-			// 调用了malloc函数
-			Expr *size = callexpr->getArg(0);
-			val = mStack.back().getStmtVal(size);
+			Expr *arg = callexpr->getArg(0);
+			int size = mStack.back().getStmtVal(arg);
 
-			int64_t *ptr = (int64_t *)malloc(val);
-			mStack.back().bindStmt(callexpr, (int64_t)ptr);
+			int64_t ptr = (int64_t)malloc(size);
+			mStack.back().bindStmt(callexpr, ptr);
 			return 0;
 		}
 		else if(callee == mFree)
@@ -534,9 +477,8 @@ public:
 		}
 		else
 		{
-			/// You could add your code here for Function call Return
-			// 此处必须开一个新栈帧，用于区分多次调用时的同名变量
-			// 传递函数参数
+			// 其他函数调用
+			// 此处必须开一个新栈帧，用于区分不同调用时的同名参数与变量
 			StackFrame funFrame = StackFrame();
 			
 			// 对于声明与定义分开的函数，需获取函数定义
@@ -545,9 +487,9 @@ public:
 
 			int paramNum = callee->getNumParams();
 			assert(paramNum == callexpr->getNumArgs());
-			for(int i=0; i < paramNum; i++)
+			for(int i = 0; i < paramNum; i++)
 			{
-				// 将子函数参数与传入数值相绑定
+				// 将函数参数与传入数值相绑定
 				Expr *arg = callexpr->getArg(i);
 				val = mStack.back().getStmtVal(arg);
 				ParmVarDecl *param = callee->getParamDecl(i);
@@ -555,7 +497,7 @@ public:
 			}
 			// 将函数栈帧压入
 			mStack.push_back(funFrame);
-			// 调用子函数，返回1
+			// 返回1以调用函数
 			return 1;
 		}
 	}
