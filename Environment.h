@@ -455,8 +455,10 @@ public:
 			else
 			{
 				// 不在则查找全局变量
-				assert(gVars.find(vardecl) != gVars.end());
-				val = gVars[vardecl];
+				//assert(gVars.find(vardecl) != gVars.end());
+				//val = gVars[vardecl];
+				val = 0;
+				std::cout<<vardecl<<std::endl;
 			}
 			// 将变量数值存入栈帧
 			mStack.back().bindStmt(declref, val);
@@ -536,6 +538,10 @@ public:
 			// 此处必须开一个新栈帧，用于区分多次调用时的同名变量
 			// 传递函数参数
 			StackFrame funFrame = StackFrame();
+			
+			// 对于声明与定义分开的函数，需获取函数定义
+			// 否则会出现此处获得的参数编号与函数体内参数编号不一致问题
+			callee = callee->getDefinition();
 
 			int paramNum = callee->getNumParams();
 			assert(paramNum == callexpr->getNumArgs());
@@ -544,8 +550,8 @@ public:
 				// 将子函数参数与传入数值相绑定
 				Expr *arg = callexpr->getArg(i);
 				val = mStack.back().getStmtVal(arg);
-				ParmVarDecl *parm = callee->getParamDecl(i);
-				funFrame.bindDecl(parm, val);
+				ParmVarDecl *param = callee->getParamDecl(i);
+				funFrame.bindDecl(param, val);
 			}
 			// 将函数栈帧压入
 			mStack.push_back(funFrame);
